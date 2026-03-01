@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VITAMIN AI - Intelligent Health Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Anuphan:wght@300;400;600;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        :root { 
+            --primary: #FF6B35;
+            --primary-light: #FFF9F6;
+        }
+
+        .dark { background-color: #0F172A; color: #F8FAFC; }
+        body { font-family: 'Anuphan', 'Inter', 'Noto Sans SC', sans-serif; transition: background-color 0.3s, color 0.3s; }
+
+        .dark .bg-white { background-color: #1E293B !important; color: #F8FAFC; }
+        .dark .bg-gray-100 { background-color: #334155 !important; }
+        .dark .bg-gray-50 { background-color: #1E293B !important; }
+
+        /* Navigation Styles */
+        .nav-link {
+            position: relative;
+            font-weight: 600;
+            padding: 0.5rem 0;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .nav-link.active { color: var(--primary); }
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-light) 0%, #FFFFFF 100%);
+            border-radius: 40px;
+            position: relative;
+            min-height: 550px;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+        .dark .hero-section { background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); }
+
+        .canvas-container {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Buttons */
+        .btn-orange { 
+            background-color: var(--primary); 
+            color: white; 
+            border-radius: 9999px; 
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-orange:hover { background-color: #e55a2b; transform: scale(1.05); }
+
+        .btn-outline {
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            border-radius: 9999px;
+            transition: all 0.3s;
+        }
+        .btn-outline:hover { background: var(--primary-light); }
+
+        /* Cards */
+        .glass-card {
+            background: white;
+            border-radius: 32px;
+            padding: 30px;
+            border: 1px solid #F1F5F9;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+        .glass-card:hover { transform: translateY(-5px); }
+        .dark .glass-card { background: #1E293B; border-color: #334155; }
+
+        .loader { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Chatbot Widget */
+        #chatbot-widget { position: fixed; bottom: 30px; right: 30px; z-index: 1000; }
+        #chatbot-window {
+            width: 350px; height: 500px; background: white; border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15); display: none; flex-direction: column; overflow: hidden;
+        }
+        .dark #chatbot-window { background: #1E293B; }
+
+        .chat-msg { max-width: 85%; padding: 12px 16px; border-radius: 18px; font-size: 13px; line-height: 1.5; }
+        .msg-bot { background: #F1F5F9; border-bottom-left-radius: 4px; align-self: flex-start; }
+        .msg-user { background: var(--primary); color: white; border-bottom-right-radius: 4px; align-self: flex-end; }
+        .dark .msg-bot { background: #334155; }
+
+        /* JSON Result Styling */
+        .json-box {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            color: #475569;
+        }
+        .dark .json-box { background: #0f172a; border-color: #334155; color: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50" id="body-tag">
+
+    <!-- Header Navigation -->
+    <header class="py-5 px-6 md:px-12 flex items-center justify-between border-b bg-white/80 backdrop-blur-md sticky top-0 z-[100] border-gray-100 dark:border-slate-800">
+        <div class="flex items-center gap-2 cursor-pointer" onclick="showPage('home')">
+            <!-- Updated brand name to VITAMIN AI -->
+            <span class="text-xl font-black text-orange-500 tracking-tighter uppercase">VITAMIN AI</span>
+        </div>
+        
+        <nav class="hidden md:flex items-center gap-10">
+            <a onclick="showPage('home')" id="nav-home" class="nav-link text-sm" data-i18n="nav-home">หน้าหลัก</a>
+            <a onclick="showPage('analysis')" id="nav-analysis" class="nav-link text-sm" data-i18n="nav-analysis">วิเคราะห์สุขภาพ</a>
+            <a onclick="showPage('team')" id="nav-team" class="nav-link text-sm" data-i18n="nav-team">ผู้จัดทำ</a>
+        </nav>
+
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-gray-100 dark:bg-slate-700 p-1 rounded-full border dark:border-slate-600">
+                <button onclick="setLanguage('th')" id="lang-th" class="px-2.5 py-1 text-[10px] font-bold rounded-full transition-all">TH</button>
+                <button onclick="setLanguage('en')" id="lang-en" class="px-2.5 py-1 text-[10px] font-bold rounded-full transition-all">EN</button>
+                <button onclick="setLanguage('zh')" id="lang-zh" class="px-2.5 py-1 text-[10px] font-bold rounded-full transition-all">CN</button>
+            </div>
+            <button onclick="toggleTheme()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-slate-700">
+                <i id="theme-icon" class="fas fa-moon text-gray-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <main id="main-content" class="max-w-7xl mx-auto px-6 py-10"></main>
+
+    <!-- Chatbot -->
+    <div id="chatbot-widget">
+        <div id="chatbot-window" class="border dark:border-slate-700">
+            <div class="bg-orange-500 p-4 text-white flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span class="font-bold text-sm">VITAMIN AI Assistant</span>
+                </div>
+                <button onclick="toggleChat()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="chat-messages" class="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-slate-900 flex flex-col space-y-4">
+                <div class="chat-msg msg-bot" data-i18n="bot-welcome">สวัสดีค่ะ มีอะไรให้ช่วยไหมคะ? คุณสามารถถามเกี่ยวกับการวินิจฉัยเม็ดเลือด, ยา หรือ X-ray ได้เลยค่ะ</div>
+            </div>
+            <div class="p-4 border-t dark:border-slate-700 flex gap-2">
+                <input type="text" id="chat-input" class="flex-1 bg-gray-100 dark:bg-slate-800 rounded-full px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-orange-500" placeholder="ถามคำถามที่นี่...">
+                <button onclick="handleChatSubmit()" class="bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center"><i class="fas fa-paper-plane text-xs"></i></button>
+            </div>
+        </div>
+        <button onclick="toggleChat()" class="w-14 h-14 bg-orange-500 text-white rounded-full shadow-xl flex items-center justify-center text-xl hover:scale-110 transition-transform">
+            <i class="fas fa-robot"></i>
+        </button>
+    </div>
+
+    <!-- Page Templates -->
+    <template id="page-home">
+        <section class="hero-section px-12 mb-16">
+            <div class="w-full md:w-1/2 z-10">
+                <h1 class="text-6xl font-black leading-[1.1] mb-8">
+                    <span data-i18n="hero-1">การวินิจฉัย</span><br>
+                    <span class="text-orange-500" data-i18n="hero-2">ด้วย</span><br>
+                    <span data-i18n="hero-3">VITAMIN AI</span>
+                </h1>
+                <p class="text-gray-500 text-lg mb-10 max-w-md" data-i18n="hero-desc">นวัตกรรม AI เพื่อบุคลากรทางการแพทย์ ช่วยลดความผิดพลาดและเพิ่มความรวดเร็วในการวิเคราะห์ข้อมูลทางการแพทย์</p>
+                <div class="flex gap-4">
+                    <button class="btn-orange px-8 py-4 font-bold" onclick="showPage('analysis')" data-i18n="btn-feedback">เริ่มการวิเคราะห์</button>
+                    <button class="btn-outline px-8 py-4 font-bold" onclick="toggleChat()" data-i18n="btn-consult">ปรึกษา AI</button>
+                </div>
+            </div>
+            <div class="canvas-container"><canvas id="dna-canvas"></canvas></div>
+        </section>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="glass-card flex flex-col items-center text-center cursor-pointer" onclick="openAnalysis('blood')">
+                <div class="w-14 h-14 bg-red-100 text-red-500 rounded-2xl flex items-center justify-center mb-6 text-xl"><i class="fas fa-vial"></i></div>
+                <h3 class="text-lg font-bold mb-2">Blood Cell</h3>
+                <p class="text-gray-400 text-xs">ตรวจนับและแยกประเภทเม็ดเลือดอัตโนมัติ</p>
+            </div>
+            <div class="glass-card flex flex-col items-center text-center cursor-pointer" onclick="openAnalysis('pill')">
+                <div class="w-14 h-14 bg-orange-100 text-orange-500 rounded-2xl flex items-center justify-center mb-6 text-xl"><i class="fas fa-pills"></i></div>
+                <h3 class="text-lg font-bold mb-2">Pill Counting</h3>
+                <p class="text-gray-400 text-xs">นับเม็ดยาและตรวจสอบความถูกต้อง</p>
+            </div>
+            <div class="glass-card flex flex-col items-center text-center cursor-pointer" onclick="openAnalysis('xray')">
+                <div class="w-14 h-14 bg-blue-100 text-blue-500 rounded-2xl flex items-center justify-center mb-6 text-xl"><i class="fas fa-lung"></i></div>
+                <h3 class="text-lg font-bold mb-2">Chest X-ray</h3>
+                <p class="text-gray-400 text-xs">วินิจฉัยความผิดปกติของปอดจากภาพรังสี</p>
+            </div>
+            <div class="glass-card flex flex-col items-center text-center cursor-pointer" onclick="openAnalysis('feedback')">
+                <div class="w-14 h-14 bg-green-100 text-green-500 rounded-2xl flex items-center justify-center mb-6 text-xl"><i class="fas fa-comment-medical"></i></div>
+                <h3 class="text-lg font-bold mb-2">Sentiment Chat</h3>
+                <p class="text-gray-400 text-xs">วิเคราะห์ความรู้สึกและตอบโต้กับคนไข้</p>
+            </div>
+        </div>
+    </template>
+
+    <template id="page-analysis">
+        <div class="mb-10 text-center">
+            <h2 class="text-4xl font-black mb-4" id="analysis-title">วิเคราะห์สุขภาพด้วย AI</h2>
+            <div class="flex justify-center gap-4 mb-8">
+                <button onclick="setAnalysisMode('blood')" class="mode-btn px-4 py-2 rounded-full text-xs font-bold bg-gray-100">Blood Cell</button>
+                <button onclick="setAnalysisMode('pill')" class="mode-btn px-4 py-2 rounded-full text-xs font-bold bg-gray-100">Pills</button>
+                <button onclick="setAnalysisMode('xray')" class="mode-btn px-4 py-2 rounded-full text-xs font-bold bg-gray-100">X-ray</button>
+                <button onclick="setAnalysisMode('feedback')" class="mode-btn px-4 py-2 rounded-full text-xs font-bold bg-gray-100">Feedback</button>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div class="glass-card">
+                <div id="upload-area" class="border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-3xl p-12 text-center cursor-pointer hover:border-orange-500 transition-colors mb-6">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-300 mb-4"></i>
+                    <p id="upload-instruction" class="text-sm text-gray-400">อัปโหลดรูปภาพเพื่อรับการวินิจฉัย</p>
+                    <input type="file" id="file-input" class="hidden" accept="image/*">
+                </div>
+                <div id="text-area-container" class="hidden mb-6">
+                    <textarea id="feedback-text" rows="8" class="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-2xl p-5 text-sm outline-none" placeholder="ใส่ข้อความสำหรับวิเคราะห์..."></textarea>
+                </div>
+                <button id="run-ai" class="btn-orange w-full py-4 font-black text-lg shadow-xl shadow-orange-100">
+                    <span id="btn-text">เริ่มการวินิจฉัย</span>
+                    <div id="btn-loader" class="loader hidden"></div>
+                </button>
+            </div>
+            
+            <div id="analysis-result" class="glass-card border-l-8 border-orange-500 flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-black text-xl flex items-center gap-2">
+                        <i class="fas fa-microchip text-orange-500"></i> <span id="res-type">AI Diagnostic Report</span>
+                    </h3>
+                    <span id="res-status" class="bg-gray-100 text-gray-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase">Waiting</span>
+                </div>
+                <div id="ai-content" class="text-sm leading-relaxed text-gray-600 dark:text-gray-300 space-y-4">
+                    <p class="italic opacity-50">กรุณาอัปโหลดข้อมูลหรือใส่ข้อความเพื่อให้ AI เริ่มต้นการประมวลผล</p>
+                </div>
+                <div id="ai-image-preview" class="mt-6 rounded-2xl overflow-hidden border border-gray-100 hidden">
+                    <img id="preview-img" class="w-full h-auto">
+                    <canvas id="result-canvas" class="w-full h-auto hidden"></canvas>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="page-team">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-black mb-4" data-i18n="nav-team">ผู้จัดทำนวัตกรรม</h2>
+                <div class="w-20 h-1.5 bg-orange-500 mx-auto rounded-full"></div>
+            </div>
+            <div class="glass-card flex flex-col md:flex-row gap-10 items-center">
+                <div class="w-64 h-80 rounded-[32px] overflow-hidden shadow-2xl shrink-0">
+                    <img src="https://pbs.twimg.com/profile_images/2025407863473270785/vc8MDNCi_400x400.jpg" class="w-full h-full object-cover">
+                </div>
+                <div>
+                    <div class="flex gap-2 mb-4">
+                        <span class="bg-orange-100 text-orange-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Lead AI Developer</span>
+                    </div>
+                    <h3 class="text-3xl font-black mb-2">อชิตะ สุวรรณศรี</h3>
+                    <p class="text-orange-500 font-bold mb-4">โรงเรียนอำนวยศิลป์ (Grade 11)</p>
+                    <p class="text-gray-500 text-sm leading-relaxed">มุ่งมั่นพัฒนา AI เพื่อช่วยเหลือบุคลากรทางการแพทย์ในการวินิจฉัยโรค โดยเน้นการประมวลผลที่มีความแม่นยำและรวดเร็ว เพื่อยกระดับมาตรฐานสาธารณสุขไทย</p>
+                    <div class="flex gap-4 mt-6">
+                        <a href="#" class="text-gray-400 hover:text-orange-500 transition-colors"><i class="fab fa-github text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-orange-500 transition-colors"><i class="fab fa-linkedin text-xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-orange-500 transition-colors"><i class="fas fa-envelope text-xl"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        let currentLang = 'th';
+        let isDark = false;
+        let scene, camera, renderer, dnaGroup;
+        let analysisMode = 'blood';
+        const apiKey = ""; 
+
+        const i18n = {
+            th: {
+                "nav-home": "หน้าหลัก", "nav-analysis": "วิเคราะห์สุขภาพ", "nav-team": "ผู้จัดทำ",
+                "hero-1": "การวินิจฉัย", "hero-2": "ด้วย", "hero-3": "VITAMIN AI",
+                "hero-desc": "นวัตกรรม AI เพื่อบุคลากรทางการแพทย์ ช่วยลดความผิดพลาดและเพิ่มความรวดเร็วในการวิเคราะห์ข้อมูลทางการแพทย์",
+                "btn-feedback": "เริ่มการวิเคราะห์", "btn-consult": "ปรึกษา AI",
+                "bot-welcome": "สวัสดีค่ะ มีอะไรให้ช่วยไหมคะ? คุณสามารถถามเกี่ยวกับการวินิจฉัยเม็ดเลือด, ยา หรือ X-ray ได้เลยค่ะ"
+            },
+            en: {
+                "nav-home": "Home", "nav-analysis": "Diagnostics", "nav-team": "Developer",
+                "hero-1": "Diagnosis", "hero-2": "Powered by", "hero-3": "VITAMIN AI",
+                "hero-desc": "AI innovation for healthcare professionals, reducing errors and accelerating medical data analysis.",
+                "btn-feedback": "Start Analysis", "btn-consult": "Consult AI",
+                "bot-welcome": "Hello! How can I help you? You can ask about blood cells, pills, or X-rays."
+            },
+            zh: {
+                "nav-home": "首页", "nav-analysis": "医疗诊断", "nav-team": "开发者",
+                "hero-1": "诊断分析", "hero-2": "由", "hero-3": "VITAMIN AI 提供",
+                "hero-desc": "面向医疗专业人员的 AI 创新，可减少错误并加速医疗数据分析。",
+                "btn-feedback": "开始分析", "btn-consult": "咨询 AI",
+                "bot-welcome": "您好！有什么我可以幫您的嗎？您可以咨询有关血细胞、药物或 X 光的问题。"
+            }
+        };
+
+        function showPage(pageId) {
+            const main = document.getElementById('main-content');
+            const template = document.getElementById(`page-${pageId}`);
+            main.innerHTML = '';
+            main.appendChild(template.content.cloneNode(true));
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.toggle('active', link.id === `nav-${pageId}`);
+            });
+
+            if(pageId === 'home') setTimeout(init3D, 50);
+            if(pageId === 'analysis') initAnalysisPage();
+            
+            setLanguage(currentLang);
+            window.scrollTo(0,0);
+        }
+
+        function initAnalysisPage() {
+            document.getElementById('run-ai').onclick = handleAnalysis;
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('file-input');
+            
+            uploadArea.onclick = () => fileInput.click();
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if(file) {
+                    const reader = new FileReader();
+                    reader.onload = (re) => {
+                        const preview = document.getElementById('preview-img');
+                        const canvas = document.getElementById('result-canvas');
+                        const container = document.getElementById('ai-image-preview');
+                        preview.src = re.target.result;
+                        preview.classList.remove('hidden');
+                        if(canvas) canvas.classList.add('hidden');
+                        container.classList.remove('hidden');
+                        document.getElementById('upload-instruction').innerText = "ไฟล์พร้อมใช้งาน: " + file.name;
+                        document.getElementById('ai-content').innerHTML = '<p class="italic opacity-50">คลิก "เริ่มการวินิจฉัย" เพื่อให้ AI ประมวลผลภาพนี้</p>';
+                        document.getElementById('res-status').innerText = "READY";
+                        document.getElementById('res-status').className = "bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase";
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            setAnalysisMode('blood');
+        }
+
+        function setAnalysisMode(mode) {
+            analysisMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                const isActive = btn.innerText.toLowerCase().includes(mode);
+                btn.className = `mode-btn px-4 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-orange-500 text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`;
+            });
+
+            const uploadArea = document.getElementById('upload-area');
+            const textArea = document.getElementById('text-area-container');
+            const title = document.getElementById('res-type');
+            
+            if(mode === 'feedback') {
+                uploadArea.classList.add('hidden');
+                textArea.classList.remove('hidden');
+                title.innerText = "Sentiment Analysis Report";
+            } else {
+                uploadArea.classList.remove('hidden');
+                textArea.classList.add('hidden');
+                title.innerText = mode === 'blood' ? "Blood Cell Report" : (mode === 'pill' ? "Pill Counting Report" : "Chest X-ray Report");
+            }
+        }
+
+        function openAnalysis(mode) {
+            showPage('analysis');
+            setTimeout(() => setAnalysisMode(mode), 10);
+        }
+
+        async function handleAnalysis() {
+            const btnText = document.getElementById('btn-text');
+            const btnLoader = document.getElementById('btn-loader');
+            const content = document.getElementById('ai-content');
+            const resStatus = document.getElementById('res-status');
+            const fileInput = document.getElementById('file-input');
+            
+            if (analysisMode !== 'feedback' && (!fileInput.files || fileInput.files.length === 0)) {
+                content.innerHTML = `<p class="text-red-500">กรุณาเลือกไฟล์ภาพก่อนทำการวิเคราะห์</p>`;
+                return;
+            }
+
+            btnText.classList.add('hidden');
+            btnLoader.classList.remove('hidden');
+            resStatus.innerText = "PROCESSING";
+            resStatus.className = "bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase";
+
+            try {
+                if (analysisMode === 'pill') {
+                    // PILL API INTEGRATION
+                    const formData = new FormData();
+                    formData.append("file", fileInput.files[0]);
+                    formData.append("conf", "0.25");
+                    formData.append("iou", "0.7");
+                    formData.append("imgsz", "640");
+
+                    const response = await fetch("/api/ultralytics", {
+                        method: "POST",
+                        headers: { "Authorization": "Bearer ul_4da8c3db44116e57cb9a43231f3d628c7c0f32a3" },
+                        body: formData,
+                    });
+
+                    if (!response.ok) throw new Error("API Connection Failed");
+
+                    const text = await response.text();
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (e) {
+                        content.innerHTML = `<div class="text-red-500">เกิดข้อผิดพลาด: ${text}</div>`;
+                        throw new Error("API response is not JSON");
+                    }
+
+                    // Display JSON result nicely
+                    content.innerHTML = `
+                        <div class="mb-4 text-green-600 font-bold"><i class="fas fa-check-circle mr-2"></i> วิเคราะห์สำเร็จ!</div>
+                        <div class="json-box">${JSON.stringify(result, null, 2)}</div>
+                        <div class="mt-4 p-4 bg-orange-50 dark:bg-slate-800 rounded-2xl border-l-4 border-orange-500">
+                            <h4 class="font-bold mb-2">สรุปผลการวิเคราะห์</h4>
+                            <p>ตรวจพบวัตถุจำนวน ${result.length || result.predictions?.length || 0} รายการในภาพ</p>
+                        </div>
+                    `;
+                } else if (analysisMode === 'xray') {
+                    // X-RAY API INTEGRATION
+                    const formData = new FormData();
+                    formData.append("file", fileInput.files[0]);
+                    formData.append("conf", "0.25");
+                    formData.append("iou", "0.7");
+                    formData.append("imgsz", "640");
+
+                    const response = await fetch("/api/ultralytics", {
+                        method: "POST",
+                        headers: { "Authorization": "Bearer ul_0fd5ac8b3d35fd1992e4618c92b504b78e4cb187" },
+                        body: formData,
+                    });
+
+                    if (!response.ok) throw new Error("X-Ray API Connection Failed");
+
+                    const text = await response.text();
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (e) {
+                        content.innerHTML = `<div class="text-red-500">เกิดข้อผิดพลาด: ${text}</div>`;
+                        throw new Error("API response is not JSON");
+                    }
+
+                    // Parse Predictions safely
+                    let predictions = [];
+                    if (result.images && result.images[0] && result.images[0].results) {
+                        predictions = result.images[0].results;
+                    } else if (result.predictions) {
+                        predictions = result.predictions;
+                    } else if (Array.isArray(result)) {
+                        predictions = result;
+                    }
+
+                    // Setup Canvas
+                    const img = new Image();
+                    img.src = document.getElementById('preview-img').src;
+                    await new Promise(r => img.onload = r);
+
+                    const canvas = document.getElementById('result-canvas');
+                    const previewImg = document.getElementById('preview-img');
+                    const ctx = canvas.getContext('2d');
+
+                    // Set canvas to exact image size
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    
+                    // Draw original image
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    let counts = {};
+
+                    predictions.forEach(pred => {
+                        let rawName = pred.name || pred.class || 'Unknown';
+                        let name = rawName.toLowerCase();
+                        let conf = ((pred.confidence || pred.conf || 0) * 100).toFixed(1);
+                        
+                        counts[name] = (counts[name] || 0) + 1;
+
+                        // Determine Color
+                        let color = '#06b6d4'; // default / pneumonia (cyan)
+                        if (name === 'covid') color = '#ef4444'; // red
+                        else if (name === 'normal') color = '#10b981'; // green
+                        else if (name === 'opacity') color = '#f59e0b'; // amber
+                        
+                        // Extract Coordinates
+                        let x1 = pred.x1 ?? pred.xmin ?? (pred.box ? pred.box.x1 : 0);
+                        let y1 = pred.y1 ?? pred.ymin ?? (pred.box ? pred.box.y1 : 0);
+                        let x2 = pred.x2 ?? pred.xmax ?? (pred.box ? pred.box.x2 : 0);
+                        let y2 = pred.y2 ?? pred.ymax ?? (pred.box ? pred.box.y2 : 0);
+
+                        // Handle normalized coordinates
+                        if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+                            x1 *= canvas.width;
+                            y1 *= canvas.height;
+                            x2 *= canvas.width;
+                            y2 *= canvas.height;
+                        }
+
+                        let w = x2 - x1;
+                        let h = y2 - y1;
+
+                        // Draw Box Fill
+                        ctx.globalAlpha = 0.25;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x1, y1, w, h);
+                        
+                        // Draw Box Border
+                        ctx.globalAlpha = 1.0;
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = Math.max(2, canvas.width / 300);
+                        ctx.strokeRect(x1, y1, w, h);
+
+                        // Draw Text with Shadow
+                        ctx.font = `bold ${Math.max(16, canvas.width / 35)}px Arial`;
+                        ctx.shadowColor = "rgba(0,0,0,0.8)";
+                        ctx.shadowBlur = 4;
+                        ctx.fillStyle = color;
+                        ctx.fillText(`${rawName} ${conf}%`, x1, y1 - 8);
+                        ctx.shadowBlur = 0; // reset shadow
+                    });
+
+                    // Switch preview to canvas
+                    previewImg.classList.add('hidden');
+                    canvas.classList.remove('hidden');
+
+                    // Render Summary UI
+                    if (predictions.length === 0) {
+                        content.innerHTML = `
+                            <div class="flex flex-col items-center justify-center p-8 bg-green-50 rounded-2xl border-2 border-green-200">
+                                <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
+                                <h3 class="text-3xl font-black text-green-600">Normal</h3>
+                                <p class="text-green-600/80 text-sm mt-2 font-bold">ไม่พบความผิดปกติในภาพรังสี</p>
+                            </div>
+                        `;
+                    } else {
+                        let listHtml = Object.entries(counts).map(([cls, count]) => {
+                            let c = '#06b6d4';
+                            if (cls === 'covid') c = '#ef4444';
+                            else if (cls === 'normal') c = '#10b981';
+                            else if (cls === 'opacity') c = '#f59e0b';
+                            
+                            return `
+                            <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded-full shadow-inner" style="background-color: ${c};"></div>
+                                    <span class="font-bold text-gray-700 dark:text-gray-200 uppercase text-sm">${cls}</span>
+                                </div>
+                                <span class="bg-gray-100 dark:bg-slate-700 dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold">${count} detected</span>
+                            </div>
+                            `;
+                        }).join('');
+
+                        content.innerHTML = `
+                            <div class="mb-5">
+                                <h4 class="text-xl font-black text-gray-800 dark:text-white">Total Detections: <span class="text-orange-500">${predictions.length}</span></h4>
+                                <p class="text-xs text-gray-500 mt-1">จำแนกตามประเภทความผิดปกติที่ AI ตรวจพบ</p>
+                            </div>
+                            <div class="space-y-3 bg-gray-50 dark:bg-slate-900/50 p-5 rounded-2xl">
+                                ${listHtml}
+                            </div>
+                        `;
+                    }
+                } else {
+                    // Standard Gemini Analysis for other modes
+                    let prompt = "";
+                    if(analysisMode === 'blood') prompt = "Simulate a medical analysis report for a Blood Cell image. Mention types found (e.g. Neutrophils, Lymphocytes) and count estimates.";
+                    else if(analysisMode === 'xray') prompt = "Simulate a Chest X-ray diagnostic report. Check for signs of pneumonia, lung opacity, and heart size.";
+                    else prompt = `Analyze this text feedback: "${document.getElementById('feedback-text').value}".`;
+
+                    const response = await fetch("/api/gemini", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt + " Response in Thai language." }] }] })
+                    });
+                    const text = await response.text();
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                        content.innerHTML = `<div class="p-2 border-l-4 border-orange-500 bg-orange-50/50 rounded-r-xl">${data.candidates[0].content.parts[0].text.replace(/\n/g, '<br>')}</div>`;
+                    } catch (e) {
+                        content.innerHTML = `<div class="text-red-500">เกิดข้อผิดพลาด: ${text}</div>`;
+                        throw new Error("API response is not JSON");
+                    }
+                }
+                
+                resStatus.innerText = "COMPLETED";
+                resStatus.className = "bg-green-100 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase";
+            } catch (err) {
+                console.error(err);
+                content.innerHTML = `<p class="text-red-500">เกิดข้อผิดพลาด: ${err.message}</p>`;
+                resStatus.innerText = "ERROR";
+                resStatus.className = "bg-red-100 text-red-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase";
+            } finally {
+                btnText.classList.remove('hidden');
+                btnLoader.classList.add('hidden');
+            }
+        }
+
+        function toggleChat() {
+            const win = document.getElementById('chatbot-window');
+            win.style.display = (win.style.display === 'flex' ? 'none' : 'flex');
+        }
+
+        async function handleChatSubmit() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            addChatMessage(text, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch("/api/gemini", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: `You are a medical AI assistant for VITAMIN AI. User says: "${text}". Reply concisely in Thai.` }] }] 
+                    })
+                });
+                const text = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                    addChatMessage(data.candidates[0].content.parts[0].text, 'bot');
+                } catch (e) {
+                    addChatMessage("ขออภัยค่ะ ระบบขัดข้องเล็กน้อย", 'bot');
+                }
+            } catch (err) {
+                addChatMessage("ขออภัยค่ะ ระบบขัดข้องเล็กน้อย", 'bot');
+            }
+        }
+
+        function addChatMessage(msg, sender) {
+            const chatBox = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-msg msg-${sender}`;
+            div.innerText = msg;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if(i18n[lang][key]) el.innerText = i18n[lang][key];
+            });
+
+            ['th', 'en', 'zh'].forEach(l => {
+                const btn = document.getElementById(`lang-${l}`);
+                btn.className = `px-2.5 py-1 text-[10px] font-bold rounded-full transition-all ${l === lang ? 'bg-orange-500 text-white' : 'text-gray-400'}`;
+            });
+        }
+
+        function toggleTheme() {
+            isDark = !isDark;
+            document.getElementById('body-tag').classList.toggle('dark', isDark);
+            document.getElementById('theme-icon').className = isDark ? 'fas fa-sun text-orange-400' : 'fas fa-moon text-gray-400';
+        }
+
+        function init3D() {
+            const canvas = document.getElementById('dna-canvas');
+            if(!canvas) return;
+            const container = canvas.parentElement;
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+            dnaGroup = new THREE.Group();
+            const sphereGeom = new THREE.SphereGeometry(0.15, 16, 16);
+            for(let i = 0; i < 30; i++) {
+                const y = (i - 15) * 0.4;
+                const angle = i * 0.5;
+                const s1 = new THREE.Mesh(sphereGeom, new THREE.MeshPhongMaterial({ color: 0xFF6B35 }));
+                s1.position.set(Math.cos(angle) * 1.5, y, Math.sin(angle) * 1.5);
+                dnaGroup.add(s1);
+                const s2 = new THREE.Mesh(sphereGeom, new THREE.MeshPhongMaterial({ color: 0xCCCCCC }));
+                s2.position.set(Math.cos(angle + Math.PI) * 1.5, y, Math.sin(angle + Math.PI) * 1.5);
+                dnaGroup.add(s2);
+            }
+            scene.add(dnaGroup);
+            scene.add(new THREE.PointLight(0xffffff, 1).translateY(5));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            camera.position.z = 8;
+            animate();
+        }
+
+        function animate() {
+            if(!document.getElementById('dna-canvas')) return;
+            requestAnimationFrame(animate);
+            if(dnaGroup) dnaGroup.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => showPage('home');
+    </script>
+</body>
+</html>
