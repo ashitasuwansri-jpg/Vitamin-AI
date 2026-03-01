@@ -3,7 +3,7 @@
 // API key ฝังอยู่ฝั่ง server เพื่อความปลอดภัย
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-const GEMINI_API_KEY = "AIzaSyAU8CDdWfMRQydtjr-3cigU-dcl_3OK7xk";
+const GEMINI_API_KEY = "AIzaSyDkgkVeDQRNK633f6gA87Vohj3koJp5Zno";
 
 export const config = {
     path: "/api/gemini",
@@ -26,17 +26,32 @@ export default async (req) => {
         // อ่าน JSON body จาก frontend
         const body = await req.text();
 
-        // Forward ไปยัง Gemini API (ใช้ key ที่ฝังอยู่ฝั่ง server)
-        const response = await fetch(`${GEMINI_BASE}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: body,
-        });
+        // ลองเรียก Gemini API — ถ้า model แรก 403 ให้ fallback
+        const models = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-2.5-pro"
+        ];
 
-        const data = await response.text();
+        let lastResponse = null;
+        for (const model of models) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+            lastResponse = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: body,
+            });
+
+            // ถ้าสำเร็จหรือไม่ใช่ 403/404 ก็ใช้เลย
+            if (lastResponse.ok || (lastResponse.status !== 403 && lastResponse.status !== 404)) {
+                break;
+            }
+        }
+
+        const data = await lastResponse.text();
 
         return new Response(data, {
-            status: response.status,
+            status: lastResponse.status,
             headers: {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*",

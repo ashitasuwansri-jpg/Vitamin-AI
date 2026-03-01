@@ -413,6 +413,12 @@
             resStatus.innerText = "PROCESSING";
             resStatus.className = "bg-orange-100 text-orange-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase";
 
+            // Reset canvas/image state
+            const canvas = document.getElementById('result-canvas');
+            const previewImg = document.getElementById('preview-img');
+            if (canvas) { canvas.classList.add('hidden'); canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); }
+            if (previewImg) previewImg.classList.remove('hidden');
+
             try {
                 if (analysisMode === 'pill') {
                     // PILL API INTEGRATION
@@ -422,7 +428,7 @@
                     formData.append("iou", "0.7");
                     formData.append("imgsz", "640");
 
-                    const response = await fetch("/api/ultralytics", {
+                    const response = await fetch("/api/pill-predict", {
                         method: "POST",
                         headers: { "Authorization": "Bearer ul_4da8c3db44116e57cb9a43231f3d628c7c0f32a3" },
                         body: formData,
@@ -439,15 +445,101 @@
                         throw new Error("API response is not JSON");
                     }
 
-                    // Display JSON result nicely
-                    content.innerHTML = `
-                        <div class="mb-4 text-green-600 font-bold"><i class="fas fa-check-circle mr-2"></i> วิเคราะห์สำเร็จ!</div>
-                        <div class="json-box">${JSON.stringify(result, null, 2)}</div>
-                        <div class="mt-4 p-4 bg-orange-50 dark:bg-slate-800 rounded-2xl border-l-4 border-orange-500">
-                            <h4 class="font-bold mb-2">สรุปผลการวิเคราะห์</h4>
-                            <p>ตรวจพบวัตถุจำนวน ${result.length || result.predictions?.length || 0} รายการในภาพ</p>
-                        </div>
-                    `;
+                    // Parse predictions from response
+                    let predictions = [];
+                    if (result.images && result.images[0] && result.images[0].results) {
+                        predictions = result.images[0].results;
+                    } else if (result.predictions) {
+                        predictions = result.predictions;
+                    } else if (Array.isArray(result)) {
+                        predictions = result;
+                    }
+
+                    // Setup Canvas for bounding boxes
+                    const img = new Image();
+                    img.src = document.getElementById('preview-img').src;
+                    await new Promise(r => img.onload = r);
+
+                    const pillCanvas = document.getElementById('result-canvas');
+                    const pillPreview = document.getElementById('preview-img');
+                    const ctx = pillCanvas.getContext('2d');
+                    pillCanvas.width = img.naturalWidth;
+                    pillCanvas.height = img.naturalHeight;
+                    ctx.drawImage(img, 0, 0, pillCanvas.width, pillCanvas.height);
+
+                    const pillColors = {
+                        'paracetamol': '#10b981', 'amoxicillin': '#3b82f6', 'ibuprofen': '#f59e0b',
+                        'aspirin': '#ef4444', 'cetirizine': '#a855f7', 'metformin': '#06b6d4',
+                        'omeprazole': '#ec4899', 'loratadine': '#8b5cf6'
+                    };
+
+                    let counts = {};
+                    predictions.forEach(pred => {
+                        let rawName = pred.name || pred.class || 'Unknown';
+                        let name = rawName.toLowerCase();
+                        let conf = ((pred.confidence || pred.conf || 0) * 100).toFixed(1);
+                        counts[name] = (counts[name] || 0) + 1;
+
+                        let color = pillColors[name] || '#06b6d4';
+
+                        let x1 = pred.x1 ?? pred.xmin ?? (pred.box ? pred.box.x1 : 0);
+                        let y1 = pred.y1 ?? pred.ymin ?? (pred.box ? pred.box.y1 : 0);
+                        let x2 = pred.x2 ?? pred.xmax ?? (pred.box ? pred.box.x2 : 0);
+                        let y2 = pred.y2 ?? pred.ymax ?? (pred.box ? pred.box.y2 : 0);
+
+                        if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+                            x1 *= pillCanvas.width; y1 *= pillCanvas.height;
+                            x2 *= pillCanvas.width; y2 *= pillCanvas.height;
+                        }
+
+                        let w = x2 - x1; let h = y2 - y1;
+
+                        ctx.globalAlpha = 0.25;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x1, y1, w, h);
+                        ctx.globalAlpha = 1.0;
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = Math.max(2, pillCanvas.width / 300);
+                        ctx.strokeRect(x1, y1, w, h);
+
+                        ctx.font = `bold ${Math.max(14, pillCanvas.width / 40)}px Arial`;
+                        ctx.shadowColor = "rgba(0,0,0,0.8)";
+                        ctx.shadowBlur = 4;
+                        ctx.fillStyle = color;
+                        ctx.fillText(`${rawName} ${conf}%`, x1, y1 - 6);
+                        ctx.shadowBlur = 0;
+                    });
+
+                    pillPreview.classList.add('hidden');
+                    pillCanvas.classList.remove('hidden');
+
+                    // Render summary
+                    if (predictions.length === 0) {
+                        content.innerHTML = `
+                            <div class="flex flex-col items-center p-8 bg-green-50 rounded-2xl border-2 border-green-200">
+                                <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
+                                <h3 class="text-2xl font-black text-green-600">ไม่พบยาในภาพ</h3>
+                            </div>`;
+                    } else {
+                        let listHtml = Object.entries(counts).map(([cls, count]) => {
+                            let c = pillColors[cls] || '#06b6d4';
+                            return `
+                            <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded-full shadow-inner" style="background-color: ${c};"></div>
+                                    <span class="font-bold text-gray-700 dark:text-gray-200 capitalize text-sm">${cls}</span>
+                                </div>
+                                <span class="bg-gray-100 dark:bg-slate-700 dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold">${count} เม็ด</span>
+                            </div>`;
+                        }).join('');
+
+                        content.innerHTML = `
+                            <div class="mb-5">
+                                <h4 class="text-xl font-black text-gray-800 dark:text-white">ตรวจพบยาทั้งหมด: <span class="text-orange-500">${predictions.length}</span> เม็ด</h4>
+                                <p class="text-xs text-gray-500 mt-1">จำแนกตามชนิดยาที่ AI ตรวจพบ</p>
+                            </div>
+                            <div class="space-y-3 bg-gray-50 dark:bg-slate-900/50 p-5 rounded-2xl">${listHtml}</div>`;
+                    }
                 } else if (analysisMode === 'xray') {
                     // X-RAY API INTEGRATION
                     const formData = new FormData();
@@ -456,7 +548,7 @@
                     formData.append("iou", "0.7");
                     formData.append("imgsz", "640");
 
-                    const response = await fetch("/api/ultralytics", {
+                    const response = await fetch("/api/xray-predict", {
                         method: "POST",
                         headers: { "Authorization": "Bearer ul_0fd5ac8b3d35fd1992e4618c92b504b78e4cb187" },
                         body: formData,
@@ -592,17 +684,133 @@
                             </div>
                         `;
                     }
+                } else if (analysisMode === 'blood') {
+                    // BLOOD CELL API INTEGRATION (YOLO)
+                    const formData = new FormData();
+                    formData.append("file", fileInput.files[0]);
+                    formData.append("conf", "0.25");
+                    formData.append("iou", "0.7");
+                    formData.append("imgsz", "640");
+
+                    const response = await fetch("/api/blood-predict", {
+                        method: "POST",
+                        headers: { "Authorization": "Bearer ul_4da8c3db44116e57cb9a43231f3d628c7c0f32a3" },
+                        body: formData,
+                    });
+
+                    if (!response.ok) throw new Error("Blood Cell API Connection Failed");
+
+                    const text = await response.text();
+                    let result;
+                    try {
+                        result = JSON.parse(text);
+                    } catch (e) {
+                        content.innerHTML = `<div class="text-red-500">เกิดข้อผิดพลาด: ${text}</div>`;
+                        throw new Error("API response is not JSON");
+                    }
+
+                    // Parse predictions
+                    let predictions = [];
+                    if (result.images && result.images[0] && result.images[0].results) {
+                        predictions = result.images[0].results;
+                    } else if (result.predictions) {
+                        predictions = result.predictions;
+                    } else if (Array.isArray(result)) {
+                        predictions = result;
+                    }
+
+                    // Setup Canvas for bounding boxes
+                    const img = new Image();
+                    img.src = document.getElementById('preview-img').src;
+                    await new Promise(r => img.onload = r);
+
+                    const canvas = document.getElementById('result-canvas');
+                    const previewImg = document.getElementById('preview-img');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    const bloodColors = {
+                        'rbc': '#ef4444', 'wbc': '#3b82f6', 'platelet': '#a855f7', 'platelets': '#a855f7',
+                        'neutrophil': '#06b6d4', 'lymphocyte': '#10b981', 'monocyte': '#f59e0b',
+                        'eosinophil': '#ec4899', 'basophil': '#8b5cf6'
+                    };
+
+                    let counts = {};
+                    predictions.forEach(pred => {
+                        let rawName = pred.name || pred.class || 'Unknown';
+                        let name = rawName.toLowerCase();
+                        let conf = ((pred.confidence || pred.conf || 0) * 100).toFixed(1);
+                        counts[name] = (counts[name] || 0) + 1;
+
+                        let color = bloodColors[name] || '#06b6d4';
+
+                        let x1 = pred.x1 ?? pred.xmin ?? (pred.box ? pred.box.x1 : 0);
+                        let y1 = pred.y1 ?? pred.ymin ?? (pred.box ? pred.box.y1 : 0);
+                        let x2 = pred.x2 ?? pred.xmax ?? (pred.box ? pred.box.x2 : 0);
+                        let y2 = pred.y2 ?? pred.ymax ?? (pred.box ? pred.box.y2 : 0);
+
+                        if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+                            x1 *= canvas.width; y1 *= canvas.height;
+                            x2 *= canvas.width; y2 *= canvas.height;
+                        }
+
+                        let w = x2 - x1; let h = y2 - y1;
+
+                        ctx.globalAlpha = 0.25;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x1, y1, w, h);
+                        ctx.globalAlpha = 1.0;
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = Math.max(2, canvas.width / 300);
+                        ctx.strokeRect(x1, y1, w, h);
+
+                        ctx.font = `bold ${Math.max(14, canvas.width / 40)}px Arial`;
+                        ctx.shadowColor = "rgba(0,0,0,0.8)";
+                        ctx.shadowBlur = 4;
+                        ctx.fillStyle = color;
+                        ctx.fillText(`${rawName} ${conf}%`, x1, y1 - 6);
+                        ctx.shadowBlur = 0;
+                    });
+
+                    previewImg.classList.add('hidden');
+                    canvas.classList.remove('hidden');
+
+                    // Render summary
+                    if (predictions.length === 0) {
+                        content.innerHTML = `
+                            <div class="flex flex-col items-center p-8 bg-green-50 rounded-2xl border-2 border-green-200">
+                                <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
+                                <h3 class="text-2xl font-black text-green-600">ไม่พบเซลล์ในภาพ</h3>
+                            </div>`;
+                    } else {
+                        let listHtml = Object.entries(counts).map(([cls, count]) => {
+                            let c = bloodColors[cls] || '#06b6d4';
+                            return `
+                            <div class="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded-full shadow-inner" style="background-color: ${c};"></div>
+                                    <span class="font-bold text-gray-700 dark:text-gray-200 capitalize text-sm">${cls}</span>
+                                </div>
+                                <span class="bg-gray-100 dark:bg-slate-700 dark:text-gray-300 px-3 py-1 rounded-full text-xs font-bold">${count} detected</span>
+                            </div>`;
+                        }).join('');
+
+                        content.innerHTML = `
+                            <div class="mb-5">
+                                <h4 class="text-xl font-black text-gray-800 dark:text-white">Total: <span class="text-orange-500">${predictions.length}</span> cells</h4>
+                            </div>
+                            <div class="space-y-3 bg-gray-50 dark:bg-slate-900/50 p-5 rounded-2xl">${listHtml}</div>`;
+                    }
                 } else {
-                    // Standard Gemini Analysis for other modes
-                    let prompt = "";
-                    if(analysisMode === 'blood') prompt = "Simulate a medical analysis report for a Blood Cell image. Mention types found (e.g. Neutrophils, Lymphocytes) and count estimates.";
-                    else if(analysisMode === 'xray') prompt = "Simulate a Chest X-ray diagnostic report. Check for signs of pneumonia, lung opacity, and heart size.";
-                    else prompt = `Analyze this text feedback: "${document.getElementById('feedback-text').value}".`;
+                    // Feedback mode — Gemini text analysis
+                    const prompt = `Analyze this text feedback: "${document.getElementById('feedback-text').value}". Response in Thai language.`;
 
                     const response = await fetch("/api/gemini", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt + " Response in Thai language." }] }] })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                     });
                     const text = await response.text();
                     let data;
